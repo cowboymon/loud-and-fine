@@ -3,118 +3,142 @@ import {
   View,
   Text,
   StyleSheet,
+  Image,
   TextInput,
+  TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { router } from 'expo-router';
-import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
-import { Button } from '../../components/ui/Button';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { Fonts } from '../../constants/fonts';
+
+const dogListening = require('../../assets/dogs/dog-listening.png');
 
 export default function DogNameScreen() {
   const [name, setName] = useState('');
 
+  const handleContinue = () => {
+    if (name.trim()) {
+      router.push({ pathname: '/onboarding/dog-age', params: { name: name.trim() } });
+    }
+  };
+
   return (
-    <ScreenWrapper>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.kav}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.container}>
-          {/* Progress dots */}
-          <View style={styles.dots}>
-            {[0, 1, 2, 3].map((i) => (
-              <View key={i} style={[styles.dot, i === 1 && styles.dotActive]} />
-            ))}
-          </View>
+          <View style={styles.hero}>
+            <View style={styles.imageWrapper}>
+              <Image source={dogListening} style={styles.dogImage} />
+            </View>
 
-          <View style={styles.content}>
-            <Text style={styles.headline}>First things first — what's your dog's name?</Text>
-            <Text style={styles.sub}>We'll be using it constantly. Fair warning.</Text>
+            <Text style={styles.headline}>What's your dog's name?</Text>
+            <Text style={styles.sub}>
+              We'll use it throughout the app. Makes it more personal.
+            </Text>
 
             <TextInput
               style={styles.input}
               value={name}
               onChangeText={setName}
-              placeholder="Biscuit"
-              placeholderTextColor={Colors.border}
+              placeholder="e.g. Biscuit"
+              placeholderTextColor={Colors.textSecondary}
               autoFocus
-              maxLength={20}
+              maxLength={24}
               autoCapitalize="words"
               returnKeyType="done"
-              onSubmitEditing={() => {
-                if (name.trim()) router.push({ pathname: '/onboarding/dog-age', params: { name: name.trim() } });
-              }}
+              onSubmitEditing={handleContinue}
+              textAlign="center"
             />
           </View>
 
-          <View style={styles.bottom}>
-            <Button
-              label="That's them →"
-              onPress={() => router.push({ pathname: '/onboarding/dog-age', params: { name: name.trim() } })}
-              disabled={!name.trim()}
-            />
-          </View>
+          <TouchableOpacity
+            style={[styles.button, !name.trim() && styles.buttonDisabled]}
+            activeOpacity={0.9}
+            onPress={handleContinue}
+            disabled={!name.trim()}
+          >
+            <Text style={styles.buttonText}>Continue</Text>
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </ScreenWrapper>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   kav: { flex: 1 },
   container: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 40,
+    paddingBottom: 12,
+    justifyContent: 'space-between',
   },
-  dots: {
-    flexDirection: 'row',
-    gap: 6,
-    alignSelf: 'center',
-    marginBottom: 48,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.border,
-  },
-  dotActive: {
-    backgroundColor: Colors.accent,
-    width: 24,
-  },
-  content: {
+  hero: {
     flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
+  },
+  imageWrapper: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    overflow: 'hidden',
+    marginBottom: 32,
+  },
+  dogImage: {
+    width: '100%',
+    height: '100%',
   },
   headline: {
     fontFamily: Fonts.jakartaExtraBold,
-    fontSize: 32,
+    fontSize: 28,
     color: Colors.textPrimary,
-    lineHeight: 40,
+    textAlign: 'center',
     marginBottom: 12,
   },
   sub: {
     fontFamily: Fonts.jakartaRegular,
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.textSecondary,
-    marginBottom: 40,
-    lineHeight: 24,
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 22,
   },
   input: {
-    fontFamily: Fonts.jakartaBold,
-    fontSize: 28,
-    color: Colors.textPrimary,
-    borderBottomWidth: 2,
-    borderBottomColor: Colors.accent,
-    paddingVertical: 12,
-    paddingHorizontal: 0,
-  },
-  bottom: {
     width: '100%',
+    maxWidth: 320,
+    backgroundColor: Colors.surfaceSecondary,
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    fontFamily: Fonts.jakartaBold,
+    fontSize: 22,
+    color: Colors.textPrimary,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  button: {
+    backgroundColor: Colors.accent,
+    borderRadius: 16,
+    paddingVertical: 18,
+    alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.3,
+  },
+  buttonText: {
+    fontFamily: Fonts.jakartaSemiBold,
+    fontSize: 17,
+    color: Colors.white,
   },
 });

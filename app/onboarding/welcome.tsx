@@ -1,107 +1,100 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
-import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
-import { Button } from '../../components/ui/Button';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { Fonts } from '../../constants/fonts';
 
+const dogHappy = require('../../assets/dogs/dog-happy.png');
+
 export default function WelcomeScreen() {
   return (
-    <ScreenWrapper>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.container}>
-        {/* Progress dots */}
-        <View style={styles.dots}>
-          {[0, 1, 2, 3].map((i) => (
-            <View key={i} style={[styles.dot, i === 0 && styles.dotActive]} />
-          ))}
-        </View>
-
-        {/* Hero illustration */}
         <View style={styles.hero}>
-          <Text style={styles.dogEmoji}>🐕</Text>
-          <View style={styles.tailWag}>
-            <Text style={styles.sparkle}>✦</Text>
-            <Text style={styles.sparkle2}>✦</Text>
+          <View style={styles.imageWrapper}>
+            <Image source={dogHappy} style={styles.dogImage} />
           </View>
+
+          <Text style={styles.title}>Loud & Fine</Text>
+          <Text style={styles.tagline}>Loud world. Fine dog.</Text>
+          <Text style={styles.body}>
+            Help your dog handle everyday sounds — vacuums, thunderstorms, fireworks.
+            Play sounds, give treats, repeat. That's it.
+          </Text>
         </View>
 
-        {/* App name */}
-        <Text style={styles.appName}>Loud & Fine</Text>
-
-        {/* Tagline */}
-        <Text style={styles.tagline}>Loud world. Fine dog.</Text>
-
-        <View style={styles.bottom}>
-          <Button label="Let's go →" onPress={() => router.push('/onboarding/dog-name')} />
-        </View>
+        <TouchableOpacity
+          style={styles.button}
+          activeOpacity={0.9}
+          onPress={() => router.push('/onboarding/dog-name')}
+        >
+          <Text style={styles.buttonText}>Get Started</Text>
+        </TouchableOpacity>
       </View>
-    </ScreenWrapper>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   container: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 40,
-    alignItems: 'center',
-  },
-  dots: {
-    flexDirection: 'row',
-    gap: 6,
-    alignSelf: 'center',
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.border,
-  },
-  dotActive: {
-    backgroundColor: Colors.accent,
-    width: 24,
+    paddingBottom: 12,
+    justifyContent: 'space-between',
   },
   hero: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
   },
-  dogEmoji: {
-    fontSize: 120,
+  imageWrapper: {
+    width: 192,
+    height: 192,
+    borderRadius: 96,
+    overflow: 'hidden',
+    marginBottom: 32,
   },
-  tailWag: {
-    position: 'absolute',
-    right: -10,
-    top: 20,
+  dogImage: {
+    width: '100%',
+    height: '100%',
   },
-  sparkle: {
-    fontSize: 24,
-    color: Colors.primary,
-  },
-  sparkle2: {
-    fontSize: 16,
-    color: Colors.accent,
-    marginLeft: 16,
-    marginTop: -8,
-  },
-  appName: {
-    fontFamily: Fonts.spectralBoldItalic,
-    fontSize: 42,
+  title: {
+    fontFamily: Fonts.serifItalic,
+    fontSize: 48,
     color: Colors.textPrimary,
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   tagline: {
-    fontFamily: Fonts.jakartaMedium,
+    fontFamily: Fonts.jakartaRegular,
     fontSize: 18,
     color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 48,
+    marginBottom: 24,
   },
-  bottom: {
-    width: '100%',
+  body: {
+    fontFamily: Fonts.jakartaRegular,
+    fontSize: 16,
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    lineHeight: 26,
+    opacity: 0.8,
+    paddingHorizontal: 8,
+  },
+  button: {
+    backgroundColor: Colors.accent,
+    borderRadius: 16,
+    paddingVertical: 18,
+    alignItems: 'center',
+  },
+  buttonText: {
+    fontFamily: Fonts.jakartaSemiBold,
+    fontSize: 17,
+    color: Colors.white,
   },
 });

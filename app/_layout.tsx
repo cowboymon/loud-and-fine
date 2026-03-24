@@ -12,7 +12,9 @@ import {
   PlusJakartaSans_700Bold,
   PlusJakartaSans_800ExtraBold,
 } from '@expo-google-fonts/plus-jakarta-sans';
-import { Spectral_700Bold_Italic } from '@expo-google-fonts/spectral';
+import {
+  InstrumentSerif_400Regular_Italic,
+} from '@expo-google-fonts/instrument-serif';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -23,7 +25,7 @@ export default function RootLayout() {
     PlusJakartaSans_600SemiBold,
     PlusJakartaSans_700Bold,
     PlusJakartaSans_800ExtraBold,
-    Spectral_700Bold_Italic,
+    InstrumentSerif_400Regular_Italic,
   });
 
   useEffect(() => {
@@ -42,12 +44,11 @@ export default function RootLayout() {
         <StatusBar style="dark" />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
-          <Stack.Screen name="preview" />
           <Stack.Screen name="onboarding" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen
             name="player/[soundId]"
-            options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+            options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
           />
           <Stack.Screen
             name="post-session"
@@ -63,6 +64,14 @@ export default function RootLayout() {
           />
           <Stack.Screen
             name="dog-switcher"
+            options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen
+            name="woofer"
+            options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
+          />
+          <Stack.Screen
+            name="dog-edit"
             options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
           />
         </Stack>

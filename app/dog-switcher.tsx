@@ -1,24 +1,35 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+} from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { DogAvatar } from '../components/ui/DogAvatar';
-import { Button } from '../components/ui/Button';
 import { Colors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
+import { useAppStore } from '../store/appStore';
 
-// Static placeholder data for Phase A preview
-const DOGS = [
-  { id: '1', name: 'Biscuit', ageGroup: 'Young dog', confident: 1, isActive: true },
-  { id: '2', name: 'Pickle', ageGroup: 'Puppy', confident: 0, isActive: false },
-];
+const dogProfile = require('../assets/dogs/dog-playful.png');
+
+const AGE_LABEL: Record<string, string> = {
+  puppy: 'Puppy (under 6 months)',
+  young: 'Young dog (6m–2yrs)',
+  adult: '2+ years',
+};
 
 export default function DogSwitcherScreen() {
-  const [activeDogId, setActiveDogId] = useState('1');
+  const dogs = useAppStore(s => s.dogs);
+  const currentDogId = useAppStore(s => s.currentDogId);
+  const switchDog = useAppStore(s => s.switchDog);
+  const getOverallProgress = useAppStore(s => s.getOverallProgress);
 
   const handleSelect = (id: string) => {
-    setActiveDogId(id);
-    setTimeout(() => router.back(), 300);
+    switchDog(id);
+    setTimeout(() => router.back(), 200);
   };
 
   return (
@@ -32,8 +43,8 @@ export default function DogSwitcherScreen() {
         <Text style={styles.header}>Whose session is this?</Text>
 
         <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-          {DOGS.map((dog) => {
-            const isActive = dog.id === activeDogId;
+          {dogs.map((dog) => {
+            const isActive = dog.id === currentDogId;
             return (
               <TouchableOpacity
                 key={dog.id}
@@ -41,10 +52,16 @@ export default function DogSwitcherScreen() {
                 activeOpacity={0.8}
                 style={[styles.dogCard, isActive && styles.dogCardActive]}
               >
-                <DogAvatar name={dog.name} size={50} />
+                <View style={styles.dogPhoto}>
+                  {dog.photoUrl ? (
+                    <Image source={{ uri: dog.photoUrl }} style={styles.dogPhotoImg} />
+                  ) : (
+                    <Image source={dogProfile} style={styles.dogPhotoImg} />
+                  )}
+                </View>
                 <View style={styles.dogInfo}>
                   <Text style={styles.dogName}>{dog.name}</Text>
-                  <Text style={styles.dogMeta}>{dog.ageGroup} · {dog.confident} confident</Text>
+                  <Text style={styles.dogMeta}>{AGE_LABEL[dog.age] ?? dog.age}</Text>
                 </View>
                 {isActive && (
                   <View style={styles.activeBadge}>
@@ -56,7 +73,7 @@ export default function DogSwitcherScreen() {
           })}
 
           {/* Add another dog */}
-          {DOGS.length < 5 && (
+          {dogs.length < 5 && (
             <TouchableOpacity
               style={styles.addDogCard}
               activeOpacity={0.8}
@@ -67,7 +84,7 @@ export default function DogSwitcherScreen() {
               </View>
               <View style={styles.dogInfo}>
                 <Text style={styles.addDogLabel}>Add another dog</Text>
-                <Text style={styles.addDogSub}>Max 5 profiles</Text>
+                <Text style={styles.addDogSub}>Up to 5 profiles</Text>
               </View>
             </TouchableOpacity>
           )}
@@ -121,14 +138,21 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.border,
     gap: 14,
-    shadowColor: Colors.shadowColor,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 2,
   },
   dogCardActive: {
     borderColor: Colors.primary,
+  },
+  dogPhoto: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    overflow: 'hidden',
+    backgroundColor: Colors.surfaceSecondary,
+    flexShrink: 0,
+  },
+  dogPhotoImg: {
+    width: '100%',
+    height: '100%',
   },
   dogInfo: {
     flex: 1,
@@ -174,6 +198,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   addDogPlus: {
     fontFamily: Fonts.jakartaBold,

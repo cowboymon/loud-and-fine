@@ -10,6 +10,7 @@
     "build:web": "expo export -p web"
   },
   "dependencies": {
+    "@expo-google-fonts/instrument-serif": "^0.4.1",
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "@expo-google-fonts/spectral": "^0.4.1",
     "@expo/metro-runtime": "~55.0.6",
@@ -20,6 +21,7 @@
     "expo-haptics": "~55.0.9",
     "expo-image-picker": "~55.0.13",
     "expo-keep-awake": "~55.0.4",
+    "expo-linear-gradient": "^55.0.9",
     "expo-notifications": "~55.0.13",
     "expo-router": "~55.0.7",
     "expo-sharing": "~55.0.14",
