@@ -1,170 +1,191 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { router } from 'expo-router';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Share,
+} from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '../components/ui/Button';
-import { PawProgress } from '../components/ui/PawProgress';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
+import { useAppStore } from '../store/appStore';
 
-const DOG_NAME = 'Biscuit';
-const SOUND_NAME = 'Vacuum Cleaner';
+const dogGraduated = require('../assets/dogs/dog-graduated.png');
 
 export default function MilestoneScreen() {
+  const { soundName } = useLocalSearchParams<{ soundName: string }>();
+  const currentDog = useAppStore(s => s.currentDog());
+  const dogName = currentDog?.name ?? 'Your dog';
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: `${dogName} just mastered "${soundName ?? 'a scary sound'}" in Loud & Fine! 🐾`,
+      });
+    } catch {}
+  };
+
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <View style={styles.container}>
-        {/* Sparkles top */}
-        <View style={styles.sparkleRow}>
-          <Text style={styles.sparkle}>✦</Text>
-          <Text style={[styles.sparkle, { fontSize: 18, color: Colors.accent }]}>✦</Text>
-          <Text style={[styles.sparkle, { fontSize: 12 }]}>✦</Text>
-        </View>
-
-        {/* Dog illustration */}
-        <View style={styles.hero}>
-          <Text style={styles.dogEmoji}>🐕</Text>
-          <View style={styles.capWrapper}>
-            <Text style={styles.cap}>🎓</Text>
+    <LinearGradient
+      colors={['#D96B4A', '#C45A3A']}
+      style={styles.gradient}
+    >
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <View style={styles.container}>
+          {/* Sparkles */}
+          <View style={styles.sparkleRow}>
+            <Text style={styles.sparkle}>✦</Text>
+            <Text style={[styles.sparkle, styles.sparkleMid]}>✦</Text>
+            <Text style={[styles.sparkle, styles.sparkleSmall]}>✦</Text>
           </View>
-          <View style={styles.sparklesHero}>
-            <Text style={[styles.sparkle, { top: 0, right: -20 }]}>✦</Text>
-            <Text style={[styles.sparkle, { top: 30, right: -35, fontSize: 14, color: Colors.accent }]}>✦</Text>
-            <Text style={[styles.sparkle, { top: -10, left: -25, fontSize: 16 }]}>✦</Text>
-          </View>
-        </View>
 
-        {/* Headline */}
-        <Text style={styles.headline}>
-          {DOG_NAME} heard {SOUND_NAME} 5 times and didn't lose it once.
-        </Text>
-
-        {/* Shareable card preview */}
-        <View style={styles.shareCard}>
-          <View style={styles.shareCardHeader}>
-            <Text style={styles.shareCardAppName}>Loud & Fine</Text>
-            <PawProgress filled={5} size={16} />
+          {/* Dog image */}
+          <View style={styles.dogCircle}>
+            <Image source={dogGraduated} style={styles.dogImage} />
           </View>
-          <Text style={styles.shareCardHeadline}>
-            {DOG_NAME}: unbothered. Finally.
+
+          {/* Sparkles below image */}
+          <View style={styles.sparkleRow}>
+            <Text style={[styles.sparkle, styles.sparkleSmall]}>✦</Text>
+            <Text style={[styles.sparkle, styles.sparkleMid]}>✦</Text>
+            <Text style={styles.sparkle}>✦</Text>
+          </View>
+
+          {/* Text */}
+          <Text style={styles.badge}>MILESTONE UNLOCKED</Text>
+          <Text style={styles.headline}>{dogName} has mastered</Text>
+          <Text style={styles.soundName}>{soundName ?? 'this sound'}</Text>
+          <Text style={styles.body}>
+            Five consecutive confident sessions.{'\n'}That's real progress.
           </Text>
-          <Text style={styles.shareCardSub}>
-            5 listens. 0 meltdowns.
-          </Text>
-          <Text style={styles.shareCardSound}>{SOUND_NAME} · Confident 🟢</Text>
-        </View>
 
-        {/* CTAs */}
-        <View style={styles.ctas}>
-          <Button label="Share this →" onPress={() => {}} />
-          <TouchableOpacity onPress={() => router.replace('/(tabs)')} style={styles.keepGoing}>
-            <Text style={styles.keepGoingText}>Keep going →</Text>
-          </TouchableOpacity>
+          {/* CTAs */}
+          <View style={styles.ctas}>
+            <TouchableOpacity
+              style={styles.shareBtn}
+              activeOpacity={0.85}
+              onPress={handleShare}
+            >
+              <Text style={styles.shareBtnText}>Share this win</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.keepGoingBtn}
+              activeOpacity={0.85}
+              onPress={() => router.replace('/(tabs)')}
+            >
+              <Text style={styles.keepGoingText}>Keep going →</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  gradient: {
+    flex: 1,
+  },
   safe: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   container: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingBottom: 32,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingBottom: 32,
+    paddingTop: 16,
+    gap: 12,
   },
   sparkleRow: {
     flexDirection: 'row',
-    gap: 16,
-    paddingTop: 24,
-    marginBottom: 8,
+    gap: 20,
   },
   sparkle: {
-    fontSize: 24,
-    color: Colors.primary,
+    fontSize: 22,
+    color: 'rgba(255,255,255,0.9)',
   },
-  hero: {
-    position: 'relative',
-    marginBottom: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dogEmoji: {
-    fontSize: 100,
-  },
-  capWrapper: {
-    position: 'absolute',
-    top: -10,
-    right: -10,
-  },
-  cap: {
-    fontSize: 36,
-  },
-  sparklesHero: {
-    position: 'absolute',
-    width: 160,
-    height: 120,
-  },
-  headline: {
-    fontFamily: Fonts.jakartaExtraBold,
-    fontSize: 24,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    lineHeight: 34,
-    marginBottom: 24,
-    paddingHorizontal: 8,
-  },
-  shareCard: {
-    width: '100%',
-    backgroundColor: Colors.accent,
-    borderRadius: 22,
-    padding: 22,
-    marginBottom: 28,
-    gap: 8,
-  },
-  shareCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  shareCardAppName: {
-    fontFamily: Fonts.spectralBoldItalic,
+  sparkleMid: {
     fontSize: 16,
     color: 'rgba(255,255,255,0.7)',
   },
-  shareCardHeadline: {
-    fontFamily: Fonts.jakartaExtraBold,
-    fontSize: 20,
-    color: Colors.white,
-    lineHeight: 28,
+  sparkleSmall: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
   },
-  shareCardSub: {
+  dogCircle: {
+    width: 224,
+    height: 224,
+    borderRadius: 112,
+    overflow: 'hidden',
+    borderWidth: 4,
+    borderColor: 'rgba(255,255,255,0.9)',
+  },
+  dogImage: {
+    width: '100%',
+    height: '100%',
+  },
+  badge: {
+    fontFamily: Fonts.jakartaSemiBold,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
+    letterSpacing: 1.8,
+    marginTop: 8,
+  },
+  headline: {
+    fontFamily: Fonts.jakartaBold,
+    fontSize: 20,
+    color: 'rgba(255,255,255,0.9)',
+    textAlign: 'center',
+  },
+  soundName: {
+    fontFamily: Fonts.serifItalic,
+    fontSize: 32,
+    color: Colors.white,
+    textAlign: 'center',
+    lineHeight: 40,
+  },
+  body: {
     fontFamily: Fonts.jakartaRegular,
     fontSize: 15,
     color: 'rgba(255,255,255,0.8)',
-  },
-  shareCardSound: {
-    fontFamily: Fonts.jakartaSemiBold,
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.6)',
-    marginTop: 4,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 8,
   },
   ctas: {
     width: '100%',
     gap: 12,
+    marginTop: 8,
   },
-  keepGoing: {
-    alignSelf: 'center',
-    padding: 10,
+  shareBtn: {
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    paddingVertical: 18,
+    alignItems: 'center',
+  },
+  shareBtnText: {
+    fontFamily: Fonts.jakartaBold,
+    fontSize: 16,
+    color: Colors.primary,
+  },
+  keepGoingBtn: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 20,
+    paddingVertical: 18,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   keepGoingText: {
-    fontFamily: Fonts.jakartaSemiBold,
+    fontFamily: Fonts.jakartaBold,
     fontSize: 16,
-    color: Colors.textSecondary,
+    color: Colors.white,
   },
 });

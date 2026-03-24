@@ -1,131 +1,123 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
-import { Button } from '../../components/ui/Button';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { Fonts } from '../../constants/fonts';
+import { useAppStore } from '../../store/appStore';
+import { AgeGroup } from '../../types';
+
+const dogHappy = require('../../assets/dogs/dog-happy.png');
 
 export default function AllSetScreen() {
-  const { name = 'Your dog' } = useLocalSearchParams<{ name: string; ageGroup: string }>();
+  const { name = 'Buddy', age = 'puppy' } = useLocalSearchParams<{ name: string; age: string }>();
+  const addDog = useAppStore(s => s.addDog);
+  const completeOnboarding = useAppStore(s => s.completeOnboarding);
+
+  const handleStart = () => {
+    addDog(name, age as AgeGroup);
+    completeOnboarding();
+    router.replace('/(tabs)');
+  };
 
   return (
-    <ScreenWrapper>
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.container}>
-        {/* Progress dots */}
-        <View style={styles.dots}>
-          {[0, 1, 2, 3].map((i) => (
-            <View key={i} style={[styles.dot, i === 3 && styles.dotActive]} />
-          ))}
-        </View>
-
-        {/* Celebration illustration */}
         <View style={styles.hero}>
-          <Text style={styles.dogEmoji}>🐕</Text>
-          <View style={styles.sparkles}>
-            <Text style={[styles.sparkle, { top: 0, right: 20 }]}>✦</Text>
-            <Text style={[styles.sparkle, { top: 40, right: -10, fontSize: 14 }]}>✦</Text>
-            <Text style={[styles.sparkle, { top: -10, left: 30, fontSize: 18 }]}>✦</Text>
-            <Text style={[styles.sparkle, { top: 50, left: -5, fontSize: 12 }]}>✦</Text>
+          <View style={styles.imageWrapper}>
+            <Image source={dogHappy} style={styles.dogImage} />
+          </View>
+
+          <Text style={styles.headline}>All set, {name}!</Text>
+          <Text style={styles.body}>
+            Ready to start building confidence. We'll take it slow and steady.
+          </Text>
+
+          <View style={styles.disclaimer}>
+            <Text style={styles.disclaimerText}>
+              A great companion to puppy school and professional training — or a solid place to start on your own.
+            </Text>
           </View>
         </View>
 
-        <View style={styles.textBlock}>
-          <Text style={styles.headline}>
-            <Text>{name}</Text>
-            <Text style={styles.headlineAccent}>'s ready.</Text>
-            {'\n'}
-            <Text style={styles.headlineMuted}>Probably.</Text>
-          </Text>
-        </View>
-
-        <View style={styles.bottom}>
-          <Button
-            label="Start listening →"
-            onPress={() => router.replace('/(tabs)')}
-          />
-          <Text style={styles.disclaimer}>
-            A great companion to puppy school and professional training — or a solid place to start on your own.
-          </Text>
-        </View>
+        <TouchableOpacity
+          style={styles.button}
+          activeOpacity={0.9}
+          onPress={handleStart}
+        >
+          <Text style={styles.buttonText}>Start Listening</Text>
+        </TouchableOpacity>
       </View>
-    </ScreenWrapper>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   container: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 40,
-    alignItems: 'center',
-  },
-  dots: {
-    flexDirection: 'row',
-    gap: 6,
-    alignSelf: 'center',
-    marginBottom: 32,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.border,
-  },
-  dotActive: {
-    backgroundColor: Colors.accent,
-    width: 24,
+    paddingBottom: 12,
+    justifyContent: 'space-between',
   },
   hero: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
   },
-  dogEmoji: {
-    fontSize: 110,
+  imageWrapper: {
+    width: 192,
+    height: 192,
+    borderRadius: 96,
+    overflow: 'hidden',
+    marginBottom: 32,
   },
-  sparkles: {
-    position: 'absolute',
-    width: 160,
-    height: 160,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sparkle: {
-    position: 'absolute',
-    fontSize: 22,
-    color: Colors.primary,
-  },
-  textBlock: {
+  dogImage: {
     width: '100%',
-    marginBottom: 40,
+    height: '100%',
   },
   headline: {
     fontFamily: Fonts.jakartaExtraBold,
     fontSize: 36,
     color: Colors.textPrimary,
     textAlign: 'center',
-    lineHeight: 46,
+    marginBottom: 16,
   },
-  headlineAccent: {
-    color: Colors.primary,
-  },
-  headlineMuted: {
+  body: {
     fontFamily: Fonts.jakartaRegular,
-    fontSize: 26,
-    color: Colors.textSecondary,
-  },
-  bottom: {
-    width: '100%',
-    gap: 16,
+    fontSize: 17,
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    lineHeight: 26,
+    marginBottom: 32,
+    paddingHorizontal: 8,
   },
   disclaimer: {
+    backgroundColor: Colors.surfaceTertiary,
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+  },
+  disclaimerText: {
     fontFamily: Fonts.jakartaRegular,
-    fontSize: 13,
-    color: Colors.textSecondary,
+    fontSize: 14,
+    color: Colors.textPrimary,
+    lineHeight: 22,
+    opacity: 0.8,
     textAlign: 'center',
-    lineHeight: 20,
+  },
+  button: {
+    backgroundColor: Colors.accent,
+    borderRadius: 16,
+    paddingVertical: 18,
+    alignItems: 'center',
+  },
+  buttonText: {
+    fontFamily: Fonts.jakartaSemiBold,
+    fontSize: 17,
+    color: Colors.white,
   },
 });

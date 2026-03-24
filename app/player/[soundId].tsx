@@ -1,136 +1,354 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
-  StatusBar,
+  Image,
+  Slider,
+  Platform,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { DualHandleSlider } from '../../components/ui/DualHandleSlider';
-import { PawProgress } from '../../components/ui/PawProgress';
-import { DogScene } from '../../components/illustrations/DogScene';
+import { StatusBar } from 'expo-status-bar';
+import Svg, { Circle } from 'react-native-svg';
+import { Audio } from 'expo-av';
+import { useKeepAwake } from 'expo-keep-awake';
 import { Colors } from '../../constants/colors';
 import { Fonts } from '../../constants/fonts';
-import { SOUNDS } from '../../constants/sounds';
+import { useAppStore } from '../../store/appStore';
+import { SOUNDS, rewardMessages, pickRandom } from '../../constants/sounds';
 
-const DOG_NAME = 'Biscuit';
-const DURATION_OPTIONS = [5, 10, 15, 20];
-const TREAT_REMINDER = `Give ${DOG_NAME} a treat while this plays. The good ones, not the dusty ones at the back.`;
+// Placeholder audio — replace per-sound once real files are available
+const PLACEHOLDER_AUDIO_URL =
+  'https://cdn.freesound.org/previews/531/531947_11349499-lq.mp3';
+
+const RING_SIZE = 176;
+const RING_RADIUS = 82;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+const DURATIONS = [2, 5, 10, 15];
+
+const dogListening = require('../../assets/dogs/dog-listening.png');
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
 
 export default function PlayerScreen() {
-  const { soundId } = useLocalSearchParams<{ soundId: string }>();
-  const sound = SOUNDS.find((s) => s.id === soundId) ?? SOUNDS[0];
+  useKeepAwake();
 
-  const [duration, setDuration] = useState(10);
-  const [startVol, setStartVol] = useState(20);
-  const [ceilingVol, setCeilingVol] = useState(50);
+  const { soundId } = useLocalSearchParams<{ soundId: string }>();
+  const soundDef = SOUNDS.find(s => s.id === soundId) ?? SOUNDS[0];
+
+  const recordPlay = useAppStore(s => s.recordPlay);
+  const getSoundState = useAppStore(s => s.getSoundState);
+  const currentDog = useAppStore(s => s.currentDog());
+
+  const dogName = currentDog?.name ?? 'your dog';
+
+  // Session params
+  const [duration, setDuration] = useState(10); // minutes
+  const [startVol, setStartVol] = useState(20); // 0-100
+  const [maxVol, setMaxVol] = useState(80);     // 0-100
+
+  // Runtime
   const [isPlaying, setIsPlaying] = useState(false);
+  const [hasStarted, setHasStarted] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(duration * 60);
+  const [rewardMsg] = useState(() => pickRandom(rewardMessages(dogName)));
+
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Keep timeRemaining in sync with duration before session starts
+  useEffect(() => {
+    if (!hasStarted) setTimeRemaining(duration * 60);
+  }, [duration, hasStarted]);
+
+  const totalSeconds = duration * 60;
+  const elapsed = totalSeconds - timeRemaining;
+  const progress = totalSeconds > 0 ? elapsed / totalSeconds : 0;
+  const strokeDashoffset = RING_CIRCUMFERENCE * (1 - progress);
+
+  // Current volume based on ramp progress
+  const currentVolume = hasStarted
+    ? Math.round(startVol + (maxVol - startVol) * progress)
+    : startVol;
+
+  // ── Audio ──────────────────────────────────────────────────────────────────
+
+  const loadAndPlay = useCallback(async () => {
+    try {
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+      });
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: PLACEHOLDER_AUDIO_URL },
+        { shouldPlay: true, isLooping: true, volume: startVol / 100 }
+      );
+      soundRef.current = sound;
+    } catch {
+      // Audio failed silently — timer still runs
+    }
+  }, [startVol]);
+
+  const updateVolume = useCallback(async (vol: number) => {
+    try {
+      await soundRef.current?.setVolumeAsync(Math.max(0, Math.min(1, vol / 100)));
+    } catch {}
+  }, []);
+
+  const stopAudio = useCallback(async () => {
+    try {
+      await soundRef.current?.stopAsync();
+      await soundRef.current?.unloadAsync();
+      soundRef.current = null;
+    } catch {}
+  }, []);
+
+  // ── Timer ──────────────────────────────────────────────────────────────────
+
+  const startSession = async () => {
+    recordPlay(soundDef.id);
+    setHasStarted(true);
+    setIsPlaying(true);
+    await loadAndPlay();
+  };
+
+  const pauseSession = async () => {
+    setIsPlaying(false);
+    try { await soundRef.current?.pauseAsync(); } catch {}
+  };
+
+  const resumeSession = async () => {
+    setIsPlaying(true);
+    try { await soundRef.current?.playAsync(); } catch {}
+  };
+
+  // Volume ramp + countdown
+  useEffect(() => {
+    if (!isPlaying) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      return;
+    }
+    intervalRef.current = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev <= 1) {
+          clearInterval(intervalRef.current!);
+          setIsPlaying(false);
+          stopAudio();
+          // Navigate to post-session
+          setTimeout(() => router.push({
+            pathname: '/post-session',
+            params: { soundId: soundDef.id, soundName: soundDef.name },
+          }), 300);
+          return 0;
+        }
+        const newElapsed = totalSeconds - (prev - 1);
+        const newVol = startVol + (maxVol - startVol) * (newElapsed / totalSeconds);
+        updateVolume(newVol);
+        return prev - 1;
+      });
+    }, 1000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [isPlaying]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      stopAudio();
+    };
+  }, []);
+
+  const handleClose = () => {
+    if (hasStarted && timeRemaining < totalSeconds) {
+      // Prompt rating if any time played
+      stopAudio();
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      router.push({
+        pathname: '/post-session',
+        params: { soundId: soundDef.id, soundName: soundDef.name },
+      });
+    } else {
+      stopAudio();
+      router.back();
+    }
+  };
+
+  const handlePlayPause = async () => {
+    if (!hasStarted) {
+      await startSession();
+    } else if (isPlaying) {
+      await pauseSession();
+    } else {
+      await resumeSession();
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar style="dark" />
 
-      {/* Drag handle + close */}
-      <View style={styles.handleRow}>
-        <View style={styles.handle} />
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.closeBtn}>
-          <Text style={styles.closeText}>✕</Text>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerText}>
+          <Text style={styles.soundName}>{soundDef.name}</Text>
+          <Text style={styles.category}>
+            {soundDef.category.replace(/-/g, ' ')}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.closeBtn}
+          onPress={handleClose}
+          hitSlop={8}
+        >
+          <Text style={styles.closeIcon}>✕</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Sound name + category */}
-        <Text style={styles.category}>{sound.category.replace(/-/g, ' ').toUpperCase()}</Text>
-        <Text style={styles.soundName}>{sound.name}</Text>
+      {/* Main area */}
+      <View style={styles.main}>
 
-        {/* Dog scene illustration */}
-        <DogScene category={sound.category} size="large" style={styles.scene} />
+        {/* Circular progress ring */}
+        <View style={styles.ringContainer}>
+          <Svg
+            width={RING_SIZE}
+            height={RING_SIZE}
+            style={styles.ringAbsolute}
+            viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
+          >
+            {/* Track */}
+            <Circle
+              cx={RING_SIZE / 2}
+              cy={RING_SIZE / 2}
+              r={RING_RADIUS}
+              fill="none"
+              stroke={Colors.surfaceSecondary}
+              strokeWidth={6}
+            />
+            {/* Progress */}
+            {hasStarted && (
+              <Circle
+                cx={RING_SIZE / 2}
+                cy={RING_SIZE / 2}
+                r={RING_RADIUS}
+                fill="none"
+                stroke={Colors.accent}
+                strokeWidth={6}
+                strokeLinecap="round"
+                strokeDasharray={RING_CIRCUMFERENCE}
+                strokeDashoffset={strokeDashoffset}
+                transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
+              />
+            )}
+          </Svg>
 
-        {/* Volume suggestion */}
-        <View style={styles.suggestionBadge}>
-          <Text style={styles.suggestionText}>
-            Last time you went to 40% — try 50% today?
-          </Text>
+          {/* Dog image inside ring */}
+          <View style={styles.dogImageWrapper}>
+            <Image source={dogListening} style={styles.dogImage} />
+          </View>
         </View>
 
-        {/* Duration chips */}
-        <Text style={styles.label}>Session length</Text>
-        <View style={styles.chips}>
-          {DURATION_OPTIONS.map((d) => (
-            <TouchableOpacity
-              key={d}
-              onPress={() => setDuration(d)}
-              style={[styles.chip, duration === d && styles.chipActive]}
-            >
-              <Text style={[styles.chipText, duration === d && styles.chipTextActive]}>
-                {d} min
-              </Text>
-            </TouchableOpacity>
-          ))}
+        {/* Timer */}
+        <View style={styles.timerSection}>
+          <Text style={styles.timer}>{formatTime(timeRemaining)}</Text>
+          {hasStarted && (
+            <Text style={styles.volumeLabel}>Volume {currentVolume}%</Text>
+          )}
         </View>
 
-        {/* Volume slider */}
-        <Text style={styles.label}>Volume range</Text>
-        <DualHandleSlider
-          startValue={startVol}
-          ceilingValue={ceilingVol}
-          onStartChange={setStartVol}
-          onCeilingChange={setCeilingVol}
-          style={styles.slider}
-        />
-
-        {/* Paw progress */}
-        <View style={styles.pawRow}>
-          <Text style={styles.pawLabel}>Progress for this sound</Text>
-          <PawProgress filled={3} size={20} />
-        </View>
-
-        {/* Treat reminder */}
-        <View style={styles.treatBox}>
-          <Text style={styles.treatEmoji}>🦴</Text>
-          <Text style={styles.treatText}>{TREAT_REMINDER}</Text>
-        </View>
-      </ScrollView>
-
-      {/* Play button */}
-      <View style={styles.footer}>
-        {isPlaying && (
-          <View style={styles.playbackInfo}>
-            <View style={styles.volumeBar}>
-              <View style={[styles.volumeFill, { width: '48%' }]} />
+        {/* Pre-session controls */}
+        {!hasStarted && (
+          <View style={styles.controls}>
+            {/* Duration */}
+            <View style={styles.controlCard}>
+              <Text style={styles.controlLabel}>Session Duration</Text>
+              <View style={styles.durationGrid}>
+                {DURATIONS.map(d => (
+                  <TouchableOpacity
+                    key={d}
+                    onPress={() => setDuration(d)}
+                    style={[
+                      styles.durationBtn,
+                      duration === d && styles.durationBtnActive,
+                    ]}
+                  >
+                    <Text style={[
+                      styles.durationText,
+                      duration === d && styles.durationTextActive,
+                    ]}>
+                      {d}m
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
-            <Text style={styles.countdown}>08:32 remaining</Text>
+
+            {/* Volume range */}
+            <View style={styles.controlCard}>
+              <Text style={styles.controlLabel}>Volume Auto-Ramp</Text>
+              <View style={styles.sliderRow}>
+                <View style={styles.sliderCol}>
+                  <View style={styles.sliderHeader}>
+                    <Text style={styles.sliderSubLabel}>Start</Text>
+                    <Text style={[styles.sliderValue, { color: Colors.accent }]}>{startVol}%</Text>
+                  </View>
+                  <Slider
+                    style={styles.slider}
+                    minimumValue={10}
+                    maximumValue={100}
+                    step={5}
+                    value={startVol}
+                    onValueChange={setStartVol}
+                    minimumTrackTintColor={Colors.accent}
+                    maximumTrackTintColor={Colors.surfaceTertiary}
+                    thumbTintColor={Colors.accent}
+                  />
+                </View>
+                <View style={styles.sliderCol}>
+                  <View style={styles.sliderHeader}>
+                    <Text style={styles.sliderSubLabel}>Max</Text>
+                    <Text style={[styles.sliderValue, { color: Colors.primary }]}>{maxVol}%</Text>
+                  </View>
+                  <Slider
+                    style={styles.slider}
+                    minimumValue={10}
+                    maximumValue={100}
+                    step={5}
+                    value={maxVol}
+                    onValueChange={setMaxVol}
+                    minimumTrackTintColor={Colors.primary}
+                    maximumTrackTintColor={Colors.surfaceTertiary}
+                    thumbTintColor={Colors.primary}
+                  />
+                </View>
+              </View>
+            </View>
           </View>
         )}
 
+        {/* Play / Pause button */}
         <TouchableOpacity
-          onPress={() => {
-            if (isPlaying) {
-              setIsPlaying(false);
-            } else {
-              setIsPlaying(true);
-            }
-          }}
+          style={styles.playBtn}
           activeOpacity={0.85}
-          style={[styles.playButton, isPlaying && styles.pauseButton]}
+          onPress={handlePlayPause}
         >
           <Text style={styles.playIcon}>{isPlaying ? '⏸' : '▶'}</Text>
         </TouchableOpacity>
 
-        {isPlaying && (
-          <TouchableOpacity
-            onPress={() => {
-              setIsPlaying(false);
-              router.push('/post-session');
-            }}
-            style={styles.endSessionBtn}
-          >
-            <Text style={styles.endSessionText}>End session</Text>
-          </TouchableOpacity>
-        )}
+        {/* Reward reminder (shown when playing) */}
+        <View style={styles.rewardArea}>
+          {hasStarted && (
+            <View style={styles.rewardCard}>
+              <Text style={styles.rewardText}>{rewardMsg}</Text>
+            </View>
+          )}
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -141,190 +359,194 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  handleRow: {
-    alignItems: 'center',
-    paddingTop: 12,
-    paddingBottom: 4,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.border,
-    position: 'absolute',
-  },
-  closeBtn: {
-    marginLeft: 'auto',
-    padding: 8,
-  },
-  closeText: {
-    fontFamily: Fonts.jakartaBold,
-    fontSize: 16,
-    color: Colors.textSecondary,
-  },
-  scroll: {
-    flex: 1,
-  },
-  content: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-  },
-  category: {
-    fontFamily: Fonts.jakartaSemiBold,
-    fontSize: 11,
-    color: Colors.textSecondary,
-    letterSpacing: 1.5,
-    marginBottom: 6,
-  },
-  soundName: {
-    fontFamily: Fonts.jakartaExtraBold,
-    fontSize: 30,
-    color: Colors.textPrimary,
-    marginBottom: 24,
-    lineHeight: 36,
-  },
-  scene: {
-    marginBottom: 20,
-  },
-  suggestionBadge: {
-    backgroundColor: Colors.surfaceSecondary,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 24,
-  },
-  suggestionText: {
-    fontFamily: Fonts.jakartaRegular,
-    fontSize: 13,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  label: {
-    fontFamily: Fonts.jakartaSemiBold,
-    fontSize: 11,
-    color: Colors.textSecondary,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    marginBottom: 12,
-  },
-  chips: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 28,
-  },
-  chip: {
-    flex: 1,
-    borderRadius: 999,
-    paddingVertical: 10,
-    backgroundColor: Colors.surface,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    alignItems: 'center',
-  },
-  chipActive: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
-  },
-  chipText: {
-    fontFamily: Fonts.jakartaSemiBold,
-    fontSize: 14,
-    color: Colors.textSecondary,
-  },
-  chipTextActive: {
-    color: Colors.white,
-  },
-  slider: {
-    marginBottom: 28,
-  },
-  pawRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  pawLabel: {
-    fontFamily: Fonts.jakartaSemiBold,
-    fontSize: 13,
-    color: Colors.textSecondary,
-  },
-  treatBox: {
+
+  // Header
+  header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: Colors.surfaceSecondary,
-    borderRadius: 14,
-    padding: 14,
-    gap: 10,
-  },
-  treatEmoji: {
-    fontSize: 20,
-    marginTop: 1,
-  },
-  treatText: {
-    flex: 1,
-    fontFamily: Fonts.jakartaRegular,
-    fontSize: 13,
-    color: Colors.accent,
-    lineHeight: 20,
-  },
-  footer: {
     paddingHorizontal: 24,
-    paddingBottom: 24,
-    alignItems: 'center',
-    gap: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
   },
-  playbackInfo: {
-    width: '100%',
-    gap: 8,
+  headerText: { flex: 1, marginRight: 12 },
+  soundName: {
+    fontFamily: Fonts.serifItalic,
+    fontSize: 24,
+    color: Colors.textPrimary,
+    lineHeight: 32,
+    marginBottom: 2,
   },
-  volumeBar: {
-    height: 6,
-    backgroundColor: Colors.border,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  volumeFill: {
-    height: '100%',
-    backgroundColor: Colors.primary,
-    borderRadius: 3,
-  },
-  countdown: {
-    fontFamily: Fonts.jakartaMedium,
-    fontSize: 14,
+  category: {
+    fontFamily: Fonts.jakartaRegular,
+    fontSize: 12,
     color: Colors.textSecondary,
-    textAlign: 'center',
+    textTransform: 'capitalize',
+    letterSpacing: 0.3,
   },
-  playButton: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: Colors.primary,
+  closeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
+  },
+  closeIcon: {
+    fontFamily: Fonts.jakartaSemiBold,
+    fontSize: 14,
+    color: Colors.textPrimary,
+  },
+
+  // Main
+  main: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 16,
+    justifyContent: 'center',
+    gap: 20,
+  },
+
+  // Ring
+  ringContainer: {
+    width: RING_SIZE,
+    height: RING_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  ringAbsolute: {
+    position: 'absolute',
+  },
+  dogImageWrapper: {
+    width: RING_SIZE - 24,
+    height: RING_SIZE - 24,
+    borderRadius: (RING_SIZE - 24) / 2,
+    overflow: 'hidden',
+  },
+  dogImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  // Timer
+  timerSection: {
+    alignItems: 'center',
+  },
+  timer: {
+    fontFamily: Fonts.serifItalic,
+    fontSize: 52,
+    color: Colors.textPrimary,
+    letterSpacing: -1,
+  },
+  volumeLabel: {
+    fontFamily: Fonts.jakartaMedium,
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginTop: 4,
+  },
+
+  // Controls
+  controls: {
+    width: '100%',
+    gap: 12,
+  },
+  controlCard: {
+    backgroundColor: Colors.surfaceSecondary,
+    borderRadius: 20,
+    padding: 16,
+  },
+  controlLabel: {
+    fontFamily: Fonts.jakartaSemiBold,
+    fontSize: 13,
+    color: Colors.textPrimary,
+    marginBottom: 12,
+  },
+  durationGrid: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  durationBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+  },
+  durationBtnActive: {
+    backgroundColor: Colors.accent,
+  },
+  durationText: {
+    fontFamily: Fonts.jakartaSemiBold,
+    fontSize: 15,
+    color: Colors.textPrimary,
+  },
+  durationTextActive: {
+    color: Colors.white,
+  },
+  sliderRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  sliderCol: { flex: 1 },
+  sliderHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  sliderSubLabel: {
+    fontFamily: Fonts.jakartaRegular,
+    fontSize: 11,
+    color: Colors.textSecondary,
+  },
+  sliderValue: {
+    fontFamily: Fonts.jakartaSemiBold,
+    fontSize: 12,
+  },
+  slider: {
+    width: '100%',
+    height: 28,
+  },
+
+  // Play button
+  playBtn: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: Colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
     shadowRadius: 16,
     elevation: 8,
-  },
-  pauseButton: {
-    backgroundColor: Colors.accent,
-    shadowColor: Colors.accent,
   },
   playIcon: {
     fontSize: 32,
     color: Colors.white,
     marginLeft: 4,
   },
-  endSessionBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
+
+  // Reward
+  rewardArea: {
+    minHeight: 80,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  endSessionText: {
-    fontFamily: Fonts.jakartaSemiBold,
-    fontSize: 14,
-    color: Colors.textSecondary,
-    textDecorationLine: 'underline',
+  rewardCard: {
+    backgroundColor: Colors.surfaceSecondary,
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    width: '100%',
+  },
+  rewardText: {
+    fontFamily: Fonts.serifItalic,
+    fontSize: 16,
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    lineHeight: 24,
   },
 });

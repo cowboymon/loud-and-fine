@@ -8,131 +8,197 @@ import {
   TouchableOpacity,
   FlatList,
 } from 'react-native';
-import { router } from 'expo-router';
-import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
-import { SoundRow } from '../../components/ui/SoundRow';
+import { router, useLocalSearchParams } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Path, Circle } from 'react-native-svg';
 import { Colors } from '../../constants/colors';
 import { Fonts } from '../../constants/fonts';
-import { SOUNDS, BROWSABLE_CATEGORIES, CATEGORY_DISPLAY } from '../../constants/sounds';
+import { useAppStore } from '../../store/appStore';
+import { SOUNDS, CATEGORIES } from '../../constants/sounds';
 import { SoundCategory } from '../../types';
 
-// Static placeholder data for Phase A preview
-const PLACEHOLDER_PROGRESS: Record<string, { paws: number; favorited: boolean; confident: boolean }> = {
-  vacuum: { paws: 5, favorited: true, confident: true },
-  thunderstorm: { paws: 3, favorited: true, confident: false },
-  fireworks: { paws: 1, favorited: false, confident: false },
-  doorbell: { paws: 2, favorited: false, confident: false },
-};
+function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+        stroke={filled ? Colors.primary : Colors.textSecondary}
+        strokeWidth={1.8}
+        fill={filled ? Colors.primary : 'none'}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
 
-const FILTER_OPTIONS: { key: string; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'starred', label: '★ Starred' },
-  ...BROWSABLE_CATEGORIES.map((cat) => ({
-    key: cat,
-    label: CATEGORY_DISPLAY[cat].emoji + ' ' + CATEGORY_DISPLAY[cat].label,
-  })),
-];
+function CheckIcon() {
+  return (
+    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M20 6L9 17l-5-5"
+        stroke={Colors.primary}
+        strokeWidth={2.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+function ChevronRight() {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M9 18l6-6-6-6"
+        stroke={Colors.textSecondary}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+      <Circle cx={11} cy={11} r={8} stroke={Colors.textSecondary} strokeWidth={1.8} />
+      <Path d="M21 21l-4.35-4.35" stroke={Colors.textSecondary} strokeWidth={1.8} strokeLinecap="round" />
+    </Svg>
+  );
+}
 
 export default function SoundsScreen() {
+  const params = useLocalSearchParams<{ category?: string }>();
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all');
-  const [favorites, setFavorites] = useState<Set<string>>(new Set(['vacuum', 'thunderstorm']));
+  const [selectedCategory, setSelectedCategory] = useState<SoundCategory | null>(
+    (params.category as SoundCategory) ?? null
+  );
 
-  const filtered = SOUNDS.filter((s) => {
-    const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
-    if (filter === 'all') return matchesSearch;
-    if (filter === 'starred') return matchesSearch && favorites.has(s.id);
-    return matchesSearch && s.category === filter;
-  });
+  const getSoundState = useAppStore(s => s.getSoundState);
+  const starredSounds = useAppStore(s => s.starredSounds);
+  const toggleStar = useAppStore(s => s.toggleStar);
 
-  const starred = filtered.filter((s) => favorites.has(s.id));
-  const rest = filtered.filter((s) => !favorites.has(s.id));
-  const showStarredSection = filter === 'all' && starred.length > 0;
+  const isConfident = (ratings: string[]) => {
+    const last5 = ratings.slice(-5);
+    return last5.length === 5 && last5.every(r => r === 'good');
+  };
+
+  const filteredSounds = SOUNDS
+    .filter(sound => {
+      const matchSearch = sound.name.toLowerCase().includes(search.toLowerCase());
+      const matchCat = !selectedCategory || sound.category === selectedCategory;
+      return matchSearch && matchCat;
+    })
+    .sort((a, b) => {
+      const aStarred = starredSounds.includes(a.id);
+      const bStarred = starredSounds.includes(b.id);
+      if (aStarred && !bStarred) return -1;
+      if (!aStarred && bStarred) return 1;
+      return 0;
+    });
 
   return (
-    <ScreenWrapper edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Sounds</Text>
-        </View>
+          <Text style={styles.title}>All Sounds</Text>
 
-        {/* Search */}
-        <View style={styles.searchBar}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <TextInput
-            style={styles.searchInput}
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search sounds..."
-            placeholderTextColor={Colors.textSecondary}
-            returnKeyType="search"
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <Text style={styles.clearBtn}>✕</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+          {/* Search */}
+          <View style={styles.searchBar}>
+            <SearchIcon />
+            <TextInput
+              style={styles.searchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search sounds..."
+              placeholderTextColor={Colors.textSecondary}
+              returnKeyType="search"
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch('')}>
+                <Text style={styles.clearBtn}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
-        {/* Filter pills */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filtersScroll}
-          contentContainerStyle={styles.filtersContent}
-        >
-          {FILTER_OPTIONS.map((f) => (
+          {/* Category filter pills */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.pillsScroll}
+            contentContainerStyle={styles.pillsContent}
+          >
             <TouchableOpacity
-              key={f.key}
-              onPress={() => setFilter(f.key)}
-              style={[styles.pill, filter === f.key && styles.pillActive]}
+              onPress={() => setSelectedCategory(null)}
+              style={[styles.pill, !selectedCategory && styles.pillActive]}
             >
-              <Text
-                style={[styles.pillText, filter === f.key && styles.pillTextActive]}
-                numberOfLines={1}
-              >
-                {f.label}
+              <Text style={[styles.pillText, !selectedCategory && styles.pillTextActive]}>
+                All
               </Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
+            {CATEGORIES.map(cat => (
+              <TouchableOpacity
+                key={cat.id}
+                onPress={() => setSelectedCategory(cat.id)}
+                style={[styles.pill, selectedCategory === cat.id && styles.pillActive]}
+              >
+                <Text style={[styles.pillText, selectedCategory === cat.id && styles.pillTextActive]}>
+                  {cat.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
 
         {/* Sound list */}
         <FlatList
-          data={showStarredSection ? [...starred, ...rest] : filtered}
-          keyExtractor={(item) => item.id}
+          data={filteredSounds}
+          keyExtractor={item => item.id}
           showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            showStarredSection && starred.length > 0 ? (
-              <Text style={styles.divider}>★ Starred</Text>
-            ) : null
-          }
-          ItemSeparatorComponent={() => null}
-          renderItem={({ item, index }) => {
-            const isFirstRest = showStarredSection && index === starred.length;
-            const prog = PLACEHOLDER_PROGRESS[item.id] ?? { paws: 0, favorited: false, confident: false };
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => {
+            const state = getSoundState(item.id);
+            const mastered = isConfident(state.ratings);
+            const inProgress = state.plays > 0 && !mastered;
+            const isStarred = starredSounds.includes(item.id);
 
             return (
-              <>
-                {isFirstRest && <Text style={styles.divider}>All sounds</Text>}
-                <SoundRow
-                  sound={item}
-                  pawsFilled={prog.paws}
-                  isFavorited={favorites.has(item.id)}
-                  isConfident={prog.confident}
-                  onPress={() => router.push(`/player/${item.id}`)}
-                  onToggleFavorite={() => {
-                    setFavorites((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(item.id)) next.delete(item.id);
-                      else next.add(item.id);
-                      return next;
-                    });
-                  }}
-                  onPlay={() => router.push(`/player/${item.id}`)}
-                />
-              </>
+              <TouchableOpacity
+                style={styles.soundCard}
+                activeOpacity={0.8}
+                onPress={() => router.push(`/player/${item.id}`)}
+              >
+                <View style={styles.soundInfo}>
+                  <View style={styles.soundNameRow}>
+                    <Text style={styles.soundName}>{item.name}</Text>
+                    {mastered && (
+                      <View style={styles.masteredBadge}>
+                        <CheckIcon />
+                        <Text style={styles.masteredText}>Mastered</Text>
+                      </View>
+                    )}
+                  </View>
+                  {!mastered && (
+                    <Text style={styles.soundStatus}>
+                      {inProgress ? 'In progress' : 'Not started'}
+                    </Text>
+                  )}
+                </View>
+
+                <View style={styles.soundActions}>
+                  <TouchableOpacity
+                    onPress={() => toggleStar(item.id)}
+                    hitSlop={8}
+                    style={styles.starBtn}
+                  >
+                    <StarIcon filled={isStarred} />
+                  </TouchableOpacity>
+                  <ChevronRight />
+                </View>
+              </TouchableOpacity>
             );
           }}
           ListEmptyComponent={
@@ -142,39 +208,40 @@ export default function SoundsScreen() {
           }
         />
       </View>
-    </ScreenWrapper>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   container: {
     flex: 1,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 12,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 4,
   },
   title: {
     fontFamily: Fonts.jakartaExtraBold,
     fontSize: 28,
     color: Colors.textPrimary,
+    marginBottom: 20,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 14,
-    marginHorizontal: 20,
+    borderRadius: 16,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 8,
+    paddingVertical: 12,
     borderWidth: 1,
     borderColor: Colors.border,
-    marginBottom: 12,
-  },
-  searchIcon: {
-    fontSize: 16,
+    gap: 10,
+    marginBottom: 16,
   },
   searchInput: {
     flex: 1,
@@ -188,20 +255,21 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     padding: 4,
   },
-  filtersScroll: {
+  pillsScroll: {
     maxHeight: 44,
     marginBottom: 8,
+    marginHorizontal: -24,
   },
-  filtersContent: {
-    paddingHorizontal: 20,
+  pillsContent: {
+    paddingHorizontal: 24,
     gap: 8,
     alignItems: 'center',
   },
   pill: {
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
     backgroundColor: Colors.surface,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderWidth: 1,
     borderColor: Colors.border,
   },
@@ -210,25 +278,78 @@ const styles = StyleSheet.create({
     borderColor: Colors.accent,
   },
   pillText: {
-    fontFamily: Fonts.jakartaSemiBold,
+    fontFamily: Fonts.jakartaMedium,
     fontSize: 13,
     color: Colors.textSecondary,
   },
   pillTextActive: {
     color: Colors.white,
   },
-  divider: {
+  listContent: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 32,
+    gap: 10,
+  },
+  soundCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 20,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    shadowColor: Colors.textPrimary,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  soundInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  soundNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  soundName: {
     fontFamily: Fonts.jakartaSemiBold,
-    fontSize: 11,
+    fontSize: 16,
+    color: Colors.textPrimary,
+  },
+  masteredBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: `${Colors.primary}18`,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  masteredText: {
+    fontFamily: Fonts.jakartaMedium,
+    fontSize: 12,
+    color: Colors.primary,
+  },
+  soundStatus: {
+    fontFamily: Fonts.jakartaRegular,
+    fontSize: 13,
     color: Colors.textSecondary,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: Colors.background,
+    marginTop: 4,
+  },
+  soundActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  starBtn: {
+    padding: 4,
   },
   empty: {
-    padding: 40,
+    padding: 48,
     alignItems: 'center',
   },
   emptyText: {

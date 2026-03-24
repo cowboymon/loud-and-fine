@@ -1,7 +1,7 @@
 import { Redirect } from 'expo-router';
+import { useAppStore } from '../store/appStore';
 
-// Phase A: go straight to preview hub so all screens are accessible.
-// Phase B: will check AsyncStorage for onboarding completion.
 export default function Index() {
-  return <Redirect href="/preview" />;
+  const hasCompletedOnboarding = useAppStore(s => s.hasCompletedOnboarding);
+  return <Redirect href={hasCompletedOnboarding ? '/(tabs)' : '/onboarding/welcome'} />;
 }
