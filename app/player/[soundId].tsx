@@ -5,9 +5,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  Slider,
   Platform,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
